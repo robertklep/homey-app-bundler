@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+if [[ ! -e app.json ]]
+then
+  echo "Missing app.json (not in an app directory?)"
+  exit 1
+fi
+
+# create temporary directory
+DST="$TMP/homey-app-bundle-$RANDOM"
+echo -n "Creating temporary directory ($DST)..."
+mkdir "$DST" || exit 2
+echo "done."
+
+# clean up after we're done
+trap "rm -fr $DST" EXIT
+
+# copy the minimal amount of files to the temporary directory
+echo -n "Copying app files..."
+tar --exclude node_modules --exclude .homeybuild -cf - . | tar -C "$DST" -xf -
+echo "done."
+
+# bundle the app file
+echo -n "Bundling app.js..."
+ncc build -q app.js -o "$DST" || exit 3
+echo "done."
+
+# chdir to bundle directory
+cd "$DST" || exit 4
+
+# move the bundled file
+mv index.js app.js
+
+# create dummy node_modules and remove `package.json` to keep `homey` happy
+mkdir node_modules
+rm package.json
+
+# start the app
+echo "Starting Homey app..."
+homey app run
+echo "Done!"
